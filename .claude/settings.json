@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:SHOT_DIR = \"C:\\\\Users\\\\vyomi\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c7ac6ae20a4107ae\\\\edf08de6-9e76-47d1-929c-8bd88f741c66\\\\scratchpad\"; $o = .\\\\.venv\\\\Scripts\\\\python -I scripts\\\\check_s4.py 2>&1; \"PASS: \" + \\($o | Select-String \"^PASS\"\\).Count + \"  FAIL: \" + \\($o | Select-String \"^FAIL\"\\).Count; $o | Select-String -NotMatch \"^PASS\" | Select-Object -Last 12)",
+      "PowerShell($env:GEMINI_MODEL = \"gemini-3.5-flash-lite\"; .\\\\.venv\\\\Scripts\\\\python -I scripts\\\\smoke.py 2>&1; Remove-Item Env:GEMINI_MODEL)"
+    ]
+  }
+}

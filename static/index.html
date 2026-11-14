@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispute Triage</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1b2430; --muted: #657084; --line: #dde3ec;
+    --accent: #1d4ed8; --accent-text: #ffffff; --field: #ffffff;
+    --crit: #b91c1c; --crit-bg: #fee2e2; --high: #b45309; --high-bg: #ffedd5;
+    --med: #8a6d00; --med-bg: #fef3c7; --low: #3f6212; --low-bg: #ecfccb;
+    --pend: #1d4ed8; --pend-bg: #dbeafe; --rev: #86198f; --rev-bg: #fae8ff;
+    --ok: #166534; --ok-bg: #dcfce7; --warn-bg: #fff7ed; --warn-line: #fdba74;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141b; --card: #171e28; --text: #e6ebf2; --muted: #93a0b4; --line: #2a3442;
+      --accent: #5b8cff; --accent-text: #0b1220; --field: #0f141b;
+      --crit: #fca5a5; --crit-bg: #4c1414; --high: #fdba74; --high-bg: #4a2508;
+      --med: #fde68a; --med-bg: #3f3206; --low: #bef264; --low-bg: #26340c;
+      --pend: #93b4ff; --pend-bg: #1a2c57; --rev: #f0abfc; --rev-bg: #430f4a;
+      --ok: #86efac; --ok-bg: #0f3a21; --warn-bg: #2b1a0c; --warn-line: #7c4a14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+           padding: 14px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); }
+  header .who { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  header .who input { width: 120px; }
+  main { max-width: 1280px; margin: 0 auto; padding: 16px; display: grid; gap: 16px;
+         grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
+  #history { grid-column: 1 / -1; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  label, .lbl { display: block; font-size: 12px; font-weight: 600; color: var(--muted);
+                margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .03em; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+                            background: var(--field); color: var(--text); font: inherit; }
+  textarea { resize: vertical; }
+  input:disabled, select:disabled, textarea:disabled { opacity: .65; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 0 0 auto; width: auto; }
+  .row > .grow { flex: 1 1 160px; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--card);
+           color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.good { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .err { color: var(--crit); margin-top: 8px; min-height: 1.2em; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .p-CRITICAL { color: var(--crit); background: var(--crit-bg); }
+  .p-HIGH { color: var(--high); background: var(--high-bg); }
+  .p-MEDIUM { color: var(--med); background: var(--med-bg); }
+  .p-LOW { color: var(--low); background: var(--low-bg); }
+  .s-PENDING_REVIEW { color: var(--pend); background: var(--pend-bg); }
+  .s-NEEDS_HUMAN_REVIEW { color: var(--rev); background: var(--rev-bg); }
+  .s-APPROVED { color: var(--ok); background: var(--ok-bg); }
+  .banner { padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; background: var(--warn-bg);
+            border: 1px solid var(--warn-line); }
+  .banner.info { background: var(--pend-bg); border-color: var(--pend); color: var(--pend); }
+  .meta { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
+  .muted { color: var(--muted); }
+  .sla.bad { color: var(--crit); font-weight: 700; }
+  .sla.warn { color: var(--high); font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
+  .redacted { white-space: pre-wrap; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px;
+              max-height: 140px; overflow: auto; background: var(--bg); }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  ul.audit { margin: 8px 0 0; padding-left: 18px; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); white-space: nowrap; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.sel { background: var(--bg); }
+  td.sum { min-width: 220px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .filters select { width: auto; }
+  #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; padding: 10px 14px; border-radius: 8px;
+           background: var(--crit-bg); color: var(--crit); border: 1px solid var(--crit); display: none; z-index: 9; }
+  #toast.show { display: block; }
+  #toast.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dispute Triage</h1>
+  <span class="sub">AI suggests &middot; staff decide</span>
+  <label class="who" for="actor" style="margin:0;text-transform:none;letter-spacing:0;font-weight:400">
+    Staff ID <input id="actor" value="staff" maxlength="40" autocomplete="off">
+  </label>
+</header>
+
+<main>
+  <section class="card" id="intake" aria-labelledby="intake-h">
+    <h2 id="intake-h">New ticket</h2>
+    <label for="sample">Pick a sample (optional)</label>
+    <select id="sample"><option value="">&mdash; choose a sample ticket &mdash;</option></select>
+    <div class="row" style="margin-top:12px">
+      <div class="grow">
+        <label for="channel" style="margin-top:0">Channel</label>
+        <select id="channel">
+          <option value="email">email</option><option value="app">app</option>
+          <option value="call">call</option><option value="other">other</option>
+        </select>
+      </div>
+    </div>
+    <label for="text">Ticket text (paste email / call note)</label>
+    <textarea id="text" rows="9" placeholder="Paste the customer's message here&hellip;"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="analyze" class="primary" type="button">Analyze</button>
+      <button id="clear" type="button">Clear</button>
+    </div>
+    <div class="err" id="intake-err" role="alert"></div>
+  </section>
+
+  <section class="card" id="result" hidden aria-live="polite"></section>
+
+  <section class="card" id="history" aria-labelledby="hist-h">
+    <h2 id="hist-h">History</h2>
+    <div class="filters">
+      <label for="f-cat" style="margin:0">Category</label>
+      <select id="f-cat"><option value="">All</option><option value="UNASSIGNED">Unassigned (needs review)</option></select>
+      <label for="f-status" style="margin:0">Status</label>
+      <select id="f-status">
+        <option value="">All</option>
+        <option value="PENDING_REVIEW">Pending review</option>
+        <option value="NEEDS_HUMAN_REVIEW">Needs human review</option>
+        <option value="APPROVED">Approved</option>
+      </select>
+      <button id="refresh" type="button">Refresh</button>
+      <span class="muted" id="count"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>ID</th><th>Ingested</th><th>Category</th><th>Priority</th><th>Status</th><th>SLA</th><th>Summary</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<div id="toast" role="alert"></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const STATUS_LABEL = { PENDING_REVIEW: "Pending review", NEEDS_HUMAN_REVIEW: "Needs human review", APPROVED: "Approved" };
+const REASON_LABEL = {
+  POSSIBLE_PROMPT_INJECTION: "Possible prompt injection in ticket text",
+  LOW_CONFIDENCE: "Model confidence too low",
+  UNKNOWN_CATEGORY: "Model returned a category outside the list",
+  INVALID_MODEL_JSON: "Model output was invalid",
+  EMPTY_MODEL_OUTPUT: "Model returned nothing",
+  NO_API_KEY: "No API key configured (fallback mode)",
+  LLM_ERROR: "Model call failed",
+  LLM_RATE_LIMITED: "Model quota or rate limit reached",
+  NO_VALID_CATEGORY: "No valid category found",
+};
+
+let cats = [];          // [{category, description, default_priority, sla_hours}]
+let samples = [];
+let current = null;     // ticket shown in the result card
+let busy = false;       // true while an Analyze request is in flight
+let histSeq = 0;        // ignores stale history responses
+
+/* ---------- tiny DOM helper: text goes through textContent, never innerHTML ---------- */
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "dataset") Object.assign(e.dataset, v);
+    else if (k in e) e[k] = v;
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) e.append(kid.nodeType ? kid : String(kid));
+  return e;
+}
+
+/* ---------- api ---------- */
+function actor() {
+  const v = $("#actor").value.replace(/[^\w .@-]/g, "").trim();
+  return v || "staff";
+}
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "X-Actor": actor() },
+  });
+  let body = null;
+  try { body = await res.json(); } catch (_) { /* non-JSON error page */ }
+  if (!res.ok) {
+    let message = body && body.message;
+    if (!message && body && Array.isArray(body.detail)) message = body.detail.map((d) => d.msg).join("; ");
+    const err = new Error(message || `Request failed (${res.status})`);
+    err.status = res.status; err.code = body && body.error;
+    throw err;
+  }
+  return { status: res.status, body };
+}
+
+let toastTimer;
+function toast(msg, ok) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "show" + (ok ? " ok" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ""; }, 5000);
+}
+
+/* ---------- formatting ---------- */
+const fmtMoney = (v) => "₹" + new Intl.NumberFormat("en-IN").format(v);
+const fmtTime = (iso) => new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+function remaining(iso) {
+  const ms = new Date(iso) - Date.now();
+  const mins = Math.floor(Math.abs(ms) / 60000);
+  const txt = (mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`);
+  if (ms < 0) return { text: `overdue ${txt}`, cls: "bad" };
+  return { text: `${txt} left`, cls: ms < 3600000 ? "warn" : "" };
+}
+function slaEl(t) {
+  if (t.status === "APPROVED") return h("span", { class: "muted" }, "approved");
+  const r = remaining(t.sla_deadline);
+  return h("span", { class: "sla " + r.cls, dataset: { deadline: t.sla_deadline } }, r.text);
+}
+setInterval(() => {
+  document.querySelectorAll("[data-deadline]").forEach((el) => {
+    const r = remaining(el.dataset.deadline);
+    el.textContent = r.text; el.className = "sla " + r.cls;
+  });
+}, 30000);
+
+const prioBadge = (p) => h("span", { class: "badge p-" + p }, p);
+const statusBadge = (s) => h("span", { class: "badge s-" + s }, STATUS_LABEL[s] || s);
+
+/* ---------- result card ---------- */
+function chips(label, items) {
+  if (!items || !items.length) return null;
+  return h("div", null, h("div", { class: "lbl" }, label), h("div", { class: "chips" }, items.map((i) => h("span", { class: "chip" }, i))));
+}
+
+function pendingChanges() {
+  const out = {};
+  if (!current) return out;
+  const cat = $("#cat").value;
+  if (cat && cat !== current.category) out.category = cat;
+  const s = $("#summary").value.trim();
+  if (s !== (current.summary || "").trim()) out.summary = s;
+  const r = $("#reply").value.trim();
+  if (r !== (current.draft_reply || "").trim()) out.draft_reply = r;
+  return out;
+}
+
+function syncButtons() {
+  if (!current) return;
+  const approved = current.status === "APPROVED";
+  const changed = Object.keys(pendingChanges()).length > 0;
+  $("#save").disabled = approved || !changed;
+  $("#approve").disabled = approved || !(current.category || $("#cat").value);
+  $("#approve").textContent = approved ? "Approved ✓" : "Approve";
+  const note = $("#cat-note");
+  if (note) note.textContent = (!approved && $("#cat").value && $("#cat").value !== current.category)
+    ? "Priority and SLA will be recomputed from this category when you save or approve." : "";
+}
+
+function renderResult(t, opts = {}) {
+  current = t;
+  history.replaceState(null, "", "#ticket=" + t.id);
+  const ex = t.extracted || {};
+  const approved = t.status === "APPROVED";
+  const root = $("#result");
+  root.hidden = false;
+  root.replaceChildren();
+
+  root.append(h("h2", null, `Ticket #${t.id}`));
+  if (opts.duplicate) root.append(h("div", { class: "banner info" },
+    "This exact text was already triaged. Showing the existing record; the re-submit was logged."));
+
+  const reasons = [...(ex.review_reasons || [])];
+  if (t.status === "NEEDS_HUMAN_REVIEW" || reasons.length) {
+    root.append(h("div", { class: "banner" },
+      h("strong", null, "Needs human review. "), "No category was assigned automatically.",
+      h("ul", { style: "margin:6px 0 0;padding-left:18px" }, reasons.map((r) => h("li", null, REASON_LABEL[r] || r)))));
+  }
+
+  root.append(h("div", { class: "meta" },
+    statusBadge(t.status), prioBadge(t.priority),
+    h("span", null, `SLA ${t.sla_hours}h`),
+    h("span", { class: "muted" }, "due " + fmtTime(t.sla_deadline)), slaEl(t),
+    t.confidence != null && h("span", { class: "muted" }, `confidence ${Math.round(t.confidence * 100)}%`)));
+  root.append(h("div", { class: "muted" }, "Priority and SLA are set by the system from the category; they cannot be edited."));
+
+  // category
+  const sel = h("select", { id: "cat", disabled: approved, onchange: syncButtons },
+    t.category ? null : h("option", { value: "" }, "— choose a category —"),
+    cats.map((c) => h("option", { value: c.category }, c.category)));
+  sel.value = t.category || "";
+  root.append(h("label", { for: "cat" }, "Category"), sel, h("div", { class: "muted", id: "cat-note" }));
+  // No one-click suggestion on injection-flagged tickets: the model saw attacker-controlled text.
+  if (!t.category && ex.suggested_primary && !(t.flags || []).length) {
+    root.append(h("div", { class: "row", style: "margin-top:6px" },
+      h("span", { class: "muted" }, "Model suggestion: " + ex.suggested_primary),
+      h("button", { type: "button", id: "use-sugg", onclick: () => { sel.value = ex.suggested_primary; syncButtons(); } }, "Use")));
+  }
+  if (t.flags && t.flags.length) root.append(h("div", { class: "chips", style: "margin-top:8px" },
+    t.flags.map((f) => h("span", { class: "badge p-CRITICAL" }, f))));
+
+  // issues + extracted details
+  const issues = (ex.issues || []).map((i) => i.detail ? `${i.category}: ${i.detail}` : i.category);
+  const det = h("div", { class: "grid2" },
+    chips("Issues identified", issues),
+    chips("Amounts", (ex.amounts || []).map((a) => fmtMoney(a.value))),
+    chips("Dates", [...(ex.dates || []), ...(ex.relative_dates || [])]),
+    chips("Cheque numbers", ex.cheque_numbers),
+    chips("Reference numbers", ex.references),
+    chips("Masked account / mobile", [...((ex.pii || {}).accounts || []), ...((ex.pii || {}).mobiles || [])]));
+  root.append(h("div", { class: "lbl" }, "Extracted details"));
+  root.append(det.children.length ? det : h("div", { class: "muted" }, "Nothing extracted."));
+
+  // editable summary + reply
+  root.append(
+    h("label", { for: "summary" }, "One-line summary"),
+    h("input", { id: "summary", type: "text", maxlength: "300", value: t.summary || "", disabled: approved, oninput: syncButtons }),
+    h("label", { for: "reply" }, "Draft reply to customer"),
+    h("textarea", { id: "reply", rows: "7", value: t.draft_reply || "", disabled: approved, oninput: syncButtons }));
+
+  root.append(h("div", { class: "row", style: "margin-top:12px" },
+    h("button", { id: "save", type: "button", onclick: onSave }, "Save edits"),
+    h("button", { id: "approve", class: "good", type: "button", onclick: onApprove }, "Approve")));
+
+  root.append(h("details", null, h("summary", null, "Ticket text (PII masked)"),
+    h("div", { class: "redacted" }, t.redacted_text)));
+  root.append(h("details", { id: "audit-box" }, h("summary", { id: "audit-sum" }, "Audit trail"),
+    h("ul", { class: "audit", id: "audit" })));
+
+  syncButtons();
+  highlightRow();
+  loadAudit(t.id);
+}
+
+function describe(e) {
+  const b = e.before || {}, a = e.after || {};
+  switch (e.event_type) {
+    case "EDITED": return Object.keys(a)
+      .filter((k) => !["sla_deadline", "sla_hours"].includes(k))
+      .map((k) => (k === "summary" || k === "draft_reply") ? `${k} edited` : `${k}: ${b[k] ?? "—"} → ${a[k]}`).join("; ");
+    case "CREATED": return `${a.category || "unassigned"} · ${a.status}` + ((a.review_reasons || []).length ? ` · ${a.review_reasons.join(", ")}` : "");
+    case "DUPLICATE_SUBMIT": return `re-submitted via ${a.channel || "?"}`;
+    case "APPROVED": return `approved as ${a.category}`;
+    default: return "";
+  }
+}
+async function loadAudit(id) {
+  try {
+    const { body } = await api(`/api/tickets/${id}/audit`);
+    if (!current || current.id !== id) return;
+    $("#audit-sum").textContent = `Audit trail (${body.length})`;
+    $("#audit").replaceChildren(...body.map((e) => h("li", null,
+      h("strong", null, e.event_type), ` · ${e.actor} · ${fmtTime(e.ts)}`, h("div", { class: "muted" }, describe(e)))));
+  } catch (_) { /* audit is secondary; the card still works */ }
+}
+
+/* ---------- actions ---------- */
+async function onAnalyze() {
+  if (busy) return;                       // double-click guard
+  busy = true;
+  const btn = $("#analyze");
+  btn.disabled = true; btn.textContent = "Analyzing…";
+  $("#intake-err").textContent = "";
+  try {
+    const { body } = await api("/api/triage", {
+      method: "POST",
+      body: JSON.stringify({ text: $("#text").value, channel: $("#channel").value }),
+    });
+    renderResult(body.ticket, { duplicate: body.duplicate });
+    await loadHistory();
+  } catch (e) {
+    $("#intake-err").textContent = e.message;
+  } finally {
+    busy = false; btn.disabled = false; btn.textContent = "Analyze";
+  }
+}
+
+async function save() {
+  const changes = pendingChanges();
+  if (!Object.keys(changes).length) return current;
+  const { body } = await api(`/api/tickets/${current.id}`, { method: "PATCH", body: JSON.stringify(changes) });
+  return body;
+}
+async function onSave() {
+  const btn = $("#save"); btn.disabled = true;
+  try { renderResult(await save()); await loadHistory(); toast("Saved", true); }
+  catch (e) { toast(e.message); syncButtons(); }
+}
+async function onApprove() {
+  const btn = $("#approve"); btn.disabled = true; $("#save").disabled = true;
+  try {
+    const edited = await save();          // persist pending edits first so approval covers what staff see
+    current = edited;
+    const { body } = await api(`/api/tickets/${current.id}/approve`, { method: "POST" });
+    renderResult(body.ticket); await loadHistory(); toast("Approved", true);
+  } catch (e) { toast(e.message); syncButtons(); }
+}
+
+/* ---------- history ---------- */
+async function loadHistory() {
+  const seq = ++histSeq;
+  const p = new URLSearchParams();
+  if ($("#f-cat").value) p.set("category", $("#f-cat").value);
+  if ($("#f-status").value) p.set("status", $("#f-status").value);
+  try {
+    const { body } = await api("/api/tickets?" + p);
+    if (seq !== histSeq) return;
+    $("#count").textContent = `${body.length} ticket${body.length === 1 ? "" : "s"}`;
+    const rows = $("#rows");
+    if (!body.length) {
+      rows.replaceChildren(h("tr", null, h("td", { colspan: "7", class: "muted" }, "No tickets match.")));
+      return;
+    }
+    rows.replaceChildren(...body.map((t) => h("tr", { tabindex: "0", dataset: { id: t.id },
+        onclick: () => openTicket(t.id), onkeydown: (ev) => { if (ev.key === "Enter") openTicket(t.id); } },
+      h("td", null, "#" + t.id),
+      h("td", null, fmtTime(t.ingested_at)),
+      h("td", null, t.category || h("em", { class: "muted" }, "Unassigned")),
+      h("td", null, prioBadge(t.priority)),
+      h("td", null, statusBadge(t.status)),
+      h("td", null, slaEl(t)),
+      h("td", { class: "sum" }, t.summary || ""))));
+    highlightRow();
+  } catch (e) { if (seq === histSeq) toast("Could not load history: " + e.message); }
+}
+function highlightRow() {
+  document.querySelectorAll("#rows tr").forEach((tr) => tr.classList.toggle("sel", !!current && tr.dataset.id === String(current.id)));
+}
+async function openTicket(id) {
+  try { const { body } = await api("/api/tickets/" + id); renderResult(body); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  catch (e) { toast(e.message); }
+}
+
+/* ---------- init ---------- */
+async function init() {
+  try { $("#actor").value = localStorage.getItem("actor") || "staff"; } catch (_) { /* storage may be blocked */ }
+  $("#actor").addEventListener("change", () => { try { localStorage.setItem("actor", actor()); } catch (_) {} });
+
+  $("#analyze").addEventListener("click", onAnalyze);
+  $("#clear").addEventListener("click", () => { $("#text").value = ""; $("#sample").value = ""; $("#intake-err").textContent = ""; $("#text").focus(); });
+  $("#refresh").addEventListener("click", loadHistory);
+  $("#f-cat").addEventListener("change", loadHistory);
+  $("#f-status").addEventListener("change", loadHistory);
+  $("#sample").addEventListener("change", () => {
+    const s = samples.find((x) => x.ticket_id === $("#sample").value);
+    if (!s) return;
+    $("#text").value = s.text;
+    if ([...$("#channel").options].some((o) => o.value === s.channel)) $("#channel").value = s.channel;
+    $("#intake-err").textContent = "";
+  });
+
+  try {
+    [cats, samples] = (await Promise.all([api("/api/categories"), api("/api/samples")])).map((r) => r.body);
+  } catch (e) { toast("Could not load categories: " + e.message); return; }
+  $("#f-cat").append(...cats.map((c) => h("option", { value: c.category }, c.category)));
+  $("#sample").append(...samples.map((s) => h("option", { value: s.ticket_id },
+    `${s.ticket_id} · ${s.channel} · ${s.text ? s.text.slice(0, 50) : "(empty)"}`)));
+
+  await loadHistory();
+  const m = location.hash.match(/^#ticket=(\d+)$/);   // deep link survives a page refresh
+  if (m) openTicket(Number(m[1]));
+}
+init();
+</script>
+</body>
+</html>

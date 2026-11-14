@@ -1,0 +1,8 @@
+category,description,default_priority,sla_hours
+CHEQUE_RETURN_QUERY,Customer asks why a deposited cheque was returned or wants it re-presented,MEDIUM,48
+DUPLICATE_DEBIT,Same payment debited more than once,HIGH,24
+FAILED_TXN_DEBITED,Transaction failed or timed out but money was debited,HIGH,24
+UNAUTHORISED_TXN,Customer says they did not make the transaction (possible fraud),CRITICAL,4
+WRONG_BENEFICIARY,Money sent to the wrong account or person,HIGH,24
+CHARGEBACK_STATUS,Asking for status or timeline of an already-raised dispute or refund,LOW,72
+OTHER_NOT_A_DISPUTE,"General question, feedback or unrelated message",LOW,72
